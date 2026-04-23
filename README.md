@@ -8,24 +8,21 @@
 
 ## Table of contents
 
-- [HelloID-Conn-SA-Sync-Google-Drives-To-SelfService-Products](#HelloID-Conn-SA-Sync-Google-Drives-To-SelfService-Products)
+- [HelloID-Conn-SA-Sync-Google-Drives-To-SelfService-Products](#helloid-conn-sa-sync-google-drives-to-selfservice-products)
   - [Table of contents](#table-of-contents)
   - [Requirements](#requirements)
   - [Remarks](#remarks)
   - [Introduction](#introduction)
       - [Description](#description)
       - [Endpoints](#endpoints)
-      - [Form Options](#form-options)
-      - [Task Actions](#task-actions)
-  - [Connector Setup](#connector-setup)
+  - [Script Setup](#script-setup)
     - [Create a Google Cloud project](#create-a-google-cloud-project)
     - [Enable Google Workspace APIs](#enable-google-workspace-apis)
     - [Create access credentials](#create-access-credentials)
       - [Create a service account](#create-a-service-account)
     - [Create credentials for a service account](#create-credentials-for-a-service-account)
     - [Set up domain-wide delegation for a service account](#set-up-domain-wide-delegation-for-a-service-account)
-    - [Variable Library - User Defined Variables](#variable-library---user-defined-variables)
-  - [Getting help](#getting-help)
+    - [User Defined Variables](#user-defined-variables)
   - [HelloID docs](#helloid-docs)
 
 ## Requirements
@@ -55,7 +52,11 @@ Google Workspace provides a set of REST APIs that allow you to programmatically 
 
 | Endpoint                                                                                                                                                 | Description                           |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| [https://www.googleapis.com/auth/admin.directory.group]
+| [https://www.googleapis.com/auth/admin.directory.user]
+| [https://www.googleapis.com/auth/drive]
 | [https://www.googleapis.com/drive/v3/drives]
+
 
 ## Script Setup
 ### Create a Google Cloud project
@@ -108,6 +109,9 @@ To call APIs on behalf of users in a Google Workspace organization, your service
 
 The following scopes are required:
 
+- `https://www.googleapis.com/auth/admin.directory.group`
+- `https://www.googleapis.com/auth/admin.directory.user`
+- `https://www.googleapis.com/drive/v3/drives`
 - `https://www.googleapis.com/auth/drive`
 
 For more information, please see: [Set up domain-wide delegation for a service account](https://developers.google.com/workspace/guides/create-credentials#optional_set_up_domain-wide_delegation_for_a_service_account).
@@ -124,7 +128,7 @@ The following user-defined variables are used by the script. Ensure that you che
 
 **Note:** The Base64 string of the P12 certificate file can be obtained by running the following code:
 ```powershell
-[System.Convert]::ToBase64String((Get-Content "C:\path\to\your\certificate.p12" -Encoding Byte))
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("C:\path\to\your\certificate.p12"))
 ```
 
 ## HelloID docs

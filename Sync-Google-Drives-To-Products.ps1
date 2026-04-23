@@ -1,7 +1,7 @@
 #####################################################
-# HelloID-SA-Sync-AD-Groups-To-Products
+# HelloID-SA-Sync-Google-Drives-To-Products
 #
-# Version: 2.2.1
+# Version: 1.0.0
 #####################################################
 $VerbosePreference = "SilentlyContinue"
 $informationPreference = "Continue"
@@ -22,10 +22,10 @@ $verboseLogging = $false
 # $portalApiSecret = "" # Set from Global Variable
 
 # Google Connection Configuration
-$userId = ""
-$p12CertificateBase64 = ""
-$p12CertificatePassword = ""
-$serviceAccountEmail = ""
+$userId = $GoogleAdminEmail  
+$p12CertificateBase64 = $GoogleP12CertificateBase64  
+$p12CertificatePassword = $GoogleP12CertificatePassword  
+$serviceAccountEmail = $GoogleServiceAccountEmail
 
 
 #HelloID Product Configuration
@@ -40,7 +40,7 @@ $productApprovalWorkflowId = "" # If empty, the Default HelloID Workflow is used
 $productVisibility = "All" # If empty, "Disabled" is used. Supported options: All, ResourceOwnerAndManager, ResourceOwner, Disabled
 $productRequestCommentOption = "" # If empty, "Optional" is used. Supported options: Optional, Hidden, Required
 $productAllowMultipleRequests = $false # If True the product can be requested unlimited times
-$productFaIcon = "users"
+$productFaIcon = "folder"
 $productCategory = "Teamdrives" # If the category is not found, the task will fail
 $productReturnOnUserDisable = $true # If True the product will be returned when the user owning the product gets disabled
 $dynamicFormObject = $null # If used, replace $null by the guid of the dynamicform
@@ -54,7 +54,7 @@ $overwriteAccessGroup = $false # Should be on false by default, only set this to
 #Target System Configuration
 # Dynamic property invocation
 # The prefix will be used as the first part HelloID Self service Product SKU.
-$ProductSkuPrefix = ""
+$ProductSkuPrefix = "GDRIVE-" 
 # The value of the property will be used as HelloID Self service Product SKU
 $GoogleGroupUniqueProperty = "id" # The vaule of the property will be used as HelloID Self service Product SKU
 
@@ -147,10 +147,10 @@ function Invoke-HIDRestmethod {
     )
 
     try {
-        Write-Information "Switching to TLS 1.2"
+        Write-Verbose "Switching to TLS 1.2"
         [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
 
-        Write-Information "Setting authorization headers"
+        Write-Verbose "Setting authorization headers"
         $apiKeySecret = "$($portalApiKey):$($portalApiSecret)"
         $base64 = [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($apiKeySecret))
         $headers = [System.Collections.Generic.Dictionary[[String], [String]]]::new()
@@ -173,7 +173,7 @@ function Invoke-HIDRestmethod {
             Do {
                 $splatParams["Uri"] = "$($script:PortalBaseUrl)/api/v1/$($Uri)?skip=$($skip)&take=$($take)"
 
-                Write-Information "Invoking [$Method] request to [$Uri]"
+                Write-Verbose "Invoking [$Method] request to [$Uri]"
                 $response = $null
                 $response = Invoke-RestMethod @splatParams
                 if (($response.PsObject.Properties.Match("pageData") | Measure-Object).Count -gt 0) {
@@ -197,11 +197,11 @@ function Invoke-HIDRestmethod {
         }
         else {
             if ($Body) {
-                Write-Information "Adding body to request"
+                Write-Verbose "Adding body to request"
                 $splatParams["Body"] = ([System.Text.Encoding]::UTF8.GetBytes($body))
             }
 
-            Write-Information "Invoking [$Method] request to [$Uri]"
+            Write-Verbose "Invoking [$Method] request to [$Uri]"
             $response = $null
             $response = Invoke-RestMethod @splatParams
 
@@ -270,32 +270,6 @@ function Resolve-GoogleError {
             }
         }
             
-        Write-Output $httpErrorObj
-    }
-}
-
-function Resolve-HTTPError {
-    [CmdletBinding()]
-    param (
-        [Parameter(Mandatory,
-            ValueFromPipeline
-        )]
-        [object]$ErrorObject
-    )
-    process {
-        $httpErrorObj = [PSCustomObject]@{
-            FullyQualifiedErrorId = $ErrorObject.FullyQualifiedErrorId
-            MyCommand             = $ErrorObject.InvocationInfo.MyCommand
-            RequestUri            = $ErrorObject.TargetObject.RequestUri
-            ScriptStackTrace      = $ErrorObject.ScriptStackTrace
-            ErrorMessage          = ''
-        }
-        if ($ErrorObject.Exception.GetType().FullName -eq 'Microsoft.Powershell.Commands.HttpResponseException') {
-            $httpErrorObj.ErrorMessage = $ErrorObject.ErrorDetails.Message
-        }
-        elseif ($ErrorObject.Exception.GetType().FullName -eq 'System.Net.WebException') {
-            $httpErrorObj.ErrorMessage = [System.IO.StreamReader]::new($ErrorObject.Exception.Response.GetResponseStream()).ReadToEnd()
-        }
         Write-Output $httpErrorObj
     }
 }
@@ -443,9 +417,9 @@ try {
     $base64Header = [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($header))
 
     # Calculate the Unix timestamp for 'exp' and 'iat'
-    $now = [Math]::Round((Get-Date (Get-Date).ToUniversalTime() -UFormat "%s"), 0)
-    $createDate = $now
-    $expiryDate = $createDate + 3540 # Expires in 59 minutes
+    $now = [Math]::Round((Get-Date (Get-Date).ToUniversalTime() -UFormat "%s"), 0)  
+    $createDate = $now - 60  # Set iat to 60 seconds in the past to account for clock skew  
+    $expiryDate = $now + 3500  # Expires in ~58 minutes (conservative to allow for clock skew) 
 
     # Create a JWT payload
     $payload = [Ordered]@{
@@ -777,9 +751,9 @@ try {
     $base64Header = [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($header))
 
     # Calculate the Unix timestamp for 'exp' and 'iat'
-    $now = [Math]::Round((Get-Date (Get-Date).ToUniversalTime() -UFormat "%s"), 0)
-    $createDate = $now
-    $expiryDate = $createDate + 3540 # Expires in 59 minutes
+    $now = [Math]::Round((Get-Date (Get-Date).ToUniversalTime() -UFormat "%s"), 0)  
+    $createDate = $now - 60  # Set iat to 60 seconds in the past to account for clock skew  
+    $expiryDate = $now + 3500  # Expires in ~58 minutes (conservative to allow for clock skew) 
 
     # Create a JWT payload
     $payload = [Ordered]@{
@@ -1002,9 +976,9 @@ try {
     $base64Header = [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($header))
 
     # Calculate the Unix timestamp for 'exp' and 'iat'
-    $now = [Math]::Round((Get-Date (Get-Date).ToUniversalTime() -UFormat "%s"), 0)
-    $createDate = $now
-    $expiryDate = $createDate + 3540 # Expires in 59 minutes
+    $now = [Math]::Round((Get-Date (Get-Date).ToUniversalTime() -UFormat "%s"), 0)  
+    $createDate = $now - 60  # Set iat to 60 seconds in the past to account for clock skew  
+    $expiryDate = $now + 3500  # Expires in ~58 minutes (conservative to allow for clock skew) 
 
 
     # Create a JWT payload
@@ -1077,8 +1051,6 @@ catch {
         $warningMessage = "Error at Line [$($ex.InvocationInfo.ScriptLineNumber)]: $($ex.InvocationInfo.Line). Error: $($ex.Exception.Message)"
     }
 
-    Write-Warning $warningMessage
-
     Write-Error $auditMessage
 }
 
@@ -1086,19 +1058,13 @@ catch {
 ########################################
 try {
     #region getting teamdrive
-    $requestId = [guid]::NewGuid().ToString()
     $actionMessage = "Getting Drives"
 
     $pageToken = $null
-    $match = $null
     $PageSize = 100
     $allDrives = New-Object System.Collections.Generic.List[object]
 
     do {
-        #   $baseUri = "https://www.googleapis.com/drive/v3/drives" +
-        #              "?pageSize=$PageSize" +
-        #              "&fields=$([System.Uri]::EscapeDataString('nextPageToken,drives(id,name)'))"
-
         $baseUri = "https://www.googleapis.com/drive/v3/drives" +
         "?pageSize=$PageSize" +
         "&useDomainAdminAccess=true" +
@@ -1339,7 +1305,7 @@ try {
         #region Define On Approve actions
         $onApproveActions = [System.Collections.Generic.list[object]]@()
 
-        # Add action to Add AD User to AD Group
+        # Add action to Add Google User to Google Drive
         [void]$onApproveActions.Add([PSCustomObject]@{
                 id          = "" # supplying an id when creating a product action is not supported. You have to leave the 'id' property empty or leave the property out alltogether when creating a new product action
                 name        = "Add-GoogleUserToGoogleDrive"
@@ -1356,7 +1322,7 @@ try {
         #region Define On Return actions
         $onReturnActions = [System.Collections.Generic.list[object]]@()
 
-        # Add action to Remove Add AD User from AD Group
+        # Add action to Remove GoogleUser from GoogleDrive
         [void]$onReturnActions.Add([PSCustomObject]@{
                 id          = "" # supplying an id when creating a product action is not supported. You have to leave the 'id' property empty or leave the property out alltogether when creating a new product action
                 name        = "Remove-GoogleUserFromGoogleDrive"
@@ -1374,7 +1340,7 @@ try {
             # General
             name                       = "$($googleGroupInScope.name)"
             description                = "Access to the group $($googleGroupInScope.name)"
-            code                       = ("$($ProductSKUPrefix)" + "$($googleGroupInScope.$GoogleGroupUniqueProperty)").Replace("-", "").Replace("_","")
+            code                       = ("$($ProductSKUPrefix)" + "$($googleGroupInScope.$GoogleGroupUniqueProperty)").Replace("-", "").Replace("_", "")
             resourceOwnerGroup         = [PSCustomObject]@{
                 id = $helloIDResourceOwnerGroup.groupGuid
             }
@@ -1402,10 +1368,12 @@ try {
             }
             returnOnUserDisable        = $productReturnOnUserDisable
             
-            # Form
-            dynamicForm = [PSCustomObject]@{
-                id = "$($dynamicFormObject)"
-            }
+            # Form  
+            dynamicForm = if ($null -ne $dynamicFormObject) { 
+                [PSCustomObject]@{ id = "$dynamicFormObject" } 
+            } else { 
+                $null 
+            }  
 
             # Actions
             onRequest                  = $onRequestActions
@@ -1414,7 +1382,7 @@ try {
             onReturn                   = $onReturnActions
             onWithdrawn                = $onWithdrawnActions
 
-            # Groups - Are set with an additional API call
+            # Drives - Are set with an additional API call
             
             # Time Limit
             hasTimeLimit               = $false
@@ -1454,7 +1422,7 @@ Hid-Write-Status -Event Information -Message "------[Summary]------"
 
 Hid-Write-Status -Event Information -Message "Total Google drive(s) in scope [$(($allDrives | Measure-Object).Count)]"
 
-if ($overwriteExistingProduct -eq $true -or $overwriteExistingProductAction -eq $true -or $addMissingProductAction -eq $true) {
+if ($overwriteExistingProduct -eq $true) {
     Hid-Write-Status -Event Information "Total HelloID Self service Product(s) already exist (and will be updated) [$(($existingProducts | Measure-Object).Count)]. Overwrite Product: [$($overwriteExistingProduct)]"
 }
 else {
